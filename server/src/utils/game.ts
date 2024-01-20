@@ -38,7 +38,7 @@ export class Game {
 	resetGame() {
 		this.playerO = undefined;
 		this.playerX = undefined;
-		this.squares = [];
+		this.squares = Array(9).fill('');
 		this.moves = 0;
 	}
 
@@ -47,9 +47,8 @@ export class Game {
 	}
 
 	playerMove(i: number) {
-		if (this.calculateWinner(this.squares) || this.squares[i]) {
-			return;
-		}
+		if (this.squares[i]) return;
+
 		const nextSquares = this.squares.slice();
 		if (this.xIsNext()) {
 			nextSquares[i] = 'X';
@@ -58,9 +57,12 @@ export class Game {
 		}
 		this.setSquares(nextSquares);
 		this.moves++;
+
+		if (this.calculateWinner(this.squares)) return this.squares[i];
 	}
 
 	authPlayer(playerId: string) {
+		console.log(playerId, this.playerO, this.playerX);
 		return playerId === this.playerO || playerId === this.playerX;
 	}
 
