@@ -20,7 +20,9 @@ interface BoardProps {
 	squares: string[];
 	onPlay: (i: number) => void;
 	playersJoined: number;
-	winner: string;
+	winner: string | null;
+	playerTurn: boolean;
+	playerWin: boolean;
 }
 
 function Board({
@@ -28,18 +30,14 @@ function Board({
 	squares,
 	onPlay,
 	playersJoined,
-	winner
+	playerTurn,
+	winner,
+	playerWin
 }: BoardProps) {
 	function handleClick(i: number) {
-		// if (calculateWinner(squares) || squares[i] !== '') {
-		// 	return;
-		// }
-		// const nextSquares = squares.slice();
-		// if (xIsNext) {
-		// 	nextSquares[i] = 'X';
-		// } else {
-		// 	nextSquares[i] = 'O';
-		// }
+		if (winner || squares[i] !== '' || !playerTurn) {
+			return;
+		}
 		onPlay(i);
 	}
 
@@ -48,7 +46,7 @@ function Board({
 		status = 'Waiting for player to join...';
 	} else {
 		if (winner) {
-			status = 'Winner: ' + winner;
+			status = playerWin ? 'You win!' : 'You lose!';
 		} else {
 			status = 'Next player: ' + (xIsNext ? 'X' : 'O');
 		}
@@ -80,9 +78,12 @@ export default function Game() {
 	const [xIsNext, setXIsNext] = useState(true);
 	const [squares, setSquares] = useState(Array(9).fill(null));
 	const [playersJoined, setPlayersJoined] = useState(0);
-	const [winner, setWinner] = useState('');
+	const [winner, setWinner] = useState(null);
+	const [playerWin, setPlayerWin] = useState(false);
+	const [playerJoined, setPlayerJoined] = useState(false);
+	const [playerTurn, setPlayerTurn] = useState(false);
 
-	const WS_URL = `ws://localhost:3000`;
+	const WS_URL = `ws://localhost:3000/?playerId=${playerId}`;
 	const { sendJsonMessage, lastJsonMessage, readyState } = useWebSocket(
 		WS_URL,
 		{
@@ -105,15 +106,31 @@ export default function Game() {
 				setSquares(msg.data.squares);
 				setPlayersJoined(msg.data.playersJoined);
 				setXIsNext(msg.data.xIsNext);
+				setWinner(null);
+				setPlayerWin(false);
+				setPlayerJoined(false);
+				setPlayerTurn(false);
 				break;
 			}
 			case 'player-join': {
 				setPlayersJoined(msg.data.playersJoined);
+				if (!playerJoined) {
+					setPlayerJoined(msg.data.playerId === playerId);
+				}
+				if (msg.data.playersJoined === 2) {
+					setPlayerTurn(msg.data.playerId === playerId);
+				}
 				break;
 			}
 			case 'player-move': {
 				setSquares(msg.data.squares);
 				setXIsNext(msg.data.xIsNext);
+				setWinner(msg.data.winner);
+				setPlayerTurn(msg.data.playerId !== playerId);
+
+				if (msg.data.winner && msg.data.playerId === playerId) {
+					setPlayerWin(true);
+				}
 				break;
 			}
 			case 'game-over': {
@@ -130,7 +147,6 @@ export default function Game() {
 		sendJsonMessage({
 			channel: 'player-move',
 			data: {
-				playerId,
 				index: i
 			}
 		});
@@ -144,7 +160,9 @@ export default function Game() {
 					squares={squares}
 					onPlay={handlePlay}
 					playersJoined={playersJoined}
+					playerTurn={playerTurn}
 					winner={winner}
+					playerWin={playerWin}
 				/>
 			</div>
 			<div className='game-info'>
@@ -152,15 +170,25 @@ export default function Game() {
 					onClick={() =>
 						sendJsonMessage({
 							channel: 'player-join',
-							data: {
-								playerId
-							}
+							data: {}
 						})
 					}
-					disabled={playersJoined >= 2}
+					disabled={playersJoined >= 2 || playerJoined}
 				>
-					Join Game as {playersJoined % 2 === 0 ? 'X' : 'O'}
+					Join Game as {playersJoined % 2 === 0 ? 'O' : 'X'}
 				</button>
+				{winner && (
+					<button
+						onClick={() =>
+							sendJsonMessage({
+								channel: 'reset-game',
+								data: {}
+							})
+						}
+					>
+						Reset Game
+					</button>
+				)}
 			</div>
 		</div>
 	);
